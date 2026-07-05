@@ -15,9 +15,10 @@ st.write("---")
 
 # 2. Live Google Sheets Data Stream
 GOOGLE_SHEET_ID = "1Ytc5af5txVuZYx7wkRYnz9-VQTX9CuDb_IlAJ1OuyXU"
-# Fixes the URL space encoding issue to prevent connection drops
+# Target the tab explicitly with proper space encoding
 SHEET_NAME = "Dive%20Database"
-SHEET_URL = f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${SHEET_NAME}"
+# FIX FOR image_1b09c1.png: Removed the '$' to target the true worksheet tab directly
+SHEET_URL = f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
 
 @st.cache_data(ttl=30)
 def load_live_data():
@@ -30,7 +31,8 @@ def load_live_data():
 df = load_live_data()
 
 if not df.empty:
-    df = df.dropna(subset=['Meet', 'Dive Code', 'Points'])
+    # OPTIONAL SAFETY FIX: Drop rows missing core data AND strip any duplicate input entries
+    df = df.dropna(subset=['Meet', 'Dive Code', 'Points']).drop_duplicates()
     
     # --- AUTOMATIC AGE GROUP EXTRACTION ---
     def extract_age_group(comp_name):
@@ -95,14 +97,13 @@ if not df.empty:
     if not filtered_df.empty:
         st.markdown("#### 📈 Points Progression")
         
-        # FIX FOR image_1ab046.png: Reverses the layout rows to establish an explicit historical order
+        # FIX FOR image_1ab046.png: Reverses layout rows to establish an explicit, sequential chronological timeline
         trend_df = filtered_df.iloc[::-1].copy() 
-        # Assigns a sequential tracking index step across dates
         trend_df['Dive Index'] = range(1, len(trend_df) + 1)
         
         fig_trend = px.line(
             trend_df, 
-            x='Dive Index',  # Fixes messy loops by plotting sequential counters
+            x='Dive Index',  # Avoids vertical date stacking by plotting linear step counts
             y='Points', 
             hover_data=['Date', 'Meet', 'Dive Code', 'Dive Name'], 
             markers=True
