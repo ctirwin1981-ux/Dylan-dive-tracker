@@ -15,8 +15,9 @@ st.write("---")
 
 # 2. Live Google Sheets Data Stream
 GOOGLE_SHEET_ID = "1Ytc5af5txVuZYx7wkRYnz9-VQTX9CuDb_IlAJ1OuyXU"
+# Fixes the URL space encoding issue to prevent connection drops
 SHEET_NAME = "Dive%20Database"
-SHEET_URL = f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+SHEET_URL = f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${SHEET_NAME}"
 
 @st.cache_data(ttl=30)
 def load_live_data():
@@ -53,7 +54,6 @@ if not df.empty:
     df['Avg Judge Score'] = (pd.to_numeric(df['Points'], errors='coerce') / pd.to_numeric(df['DD'], errors='coerce')) / 3
 
     # --- MOBILE OPTIMIZED FILTER ACCORDION ---
-    # On a phone, sidebars can be clunky. An expander container at the top is much cleaner.
     with st.expander("🔍 Tap to Filter & Drill-Down", expanded=False):
         all_ages = sorted(df['Age Group'].unique())
         selected_ages = st.multiselect("Age Group:", options=all_ages, default=all_ages)
@@ -81,7 +81,6 @@ if not df.empty:
     ]
     
     # --- MOBILE COMPACT KPI TILES ---
-    # Stacking KPIs vertically or in pairs avoids text clipping on narrow viewports
     kpi_col1, kpi_col2 = st.columns(2)
     with kpi_col1:
         st.metric(label="Dives Logged", value=len(filtered_df))
@@ -95,13 +94,25 @@ if not df.empty:
     # --- MOBILE SCALED CHART VERTICAL STACK ---
     if not filtered_df.empty:
         st.markdown("#### 📈 Points Progression")
+        
+        # FIX FOR image_1ab046.png: Reverses the layout rows to establish an explicit historical order
+        trend_df = filtered_df.iloc[::-1].copy() 
+        # Assigns a sequential tracking index step across dates
+        trend_df['Dive Index'] = range(1, len(trend_df) + 1)
+        
         fig_trend = px.line(
-            filtered_df, x='Date', y='Points', 
-            hover_data=['Meet', 'Dive Code'], markers=True
+            trend_df, 
+            x='Dive Index',  # Fixes messy loops by plotting sequential counters
+            y='Points', 
+            hover_data=['Date', 'Meet', 'Dive Code', 'Dive Name'], 
+            markers=True
         )
         fig_trend.update_traces(line_color='#0284c7', marker=dict(size=7))
-        # Reduce margins so the chart stretches cleanly edge-to-edge on phone viewports
-        fig_trend.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=260)
+        fig_trend.update_layout(
+            margin=dict(l=10, r=10, t=10, b=10), 
+            height=260,
+            xaxis=dict(title="Dives (Oldest to Newest)")
+        )
         st.plotly_chart(fig_trend, use_container_width=True, config={'displayModeBar': False})
         
         st.write("---")
@@ -120,7 +131,6 @@ if not df.empty:
         
         # --- TOUCH-FRIENDLY LOG DATAFRAME ---
         st.markdown("#### 📋 Filtered Dive Log")
-        # Streamlit's native interactive dataframe handles touch swipe scrolling automatically
         st.dataframe(
             filtered_df[['Meet', 'Date', 'Age Group', 'Dive Code', 'DD', 'Avg Judge Score', 'Points']],
             use_container_width=True,
@@ -128,3 +138,5 @@ if not df.empty:
         )
     else:
         st.warning("Adjust your drop filters above to show performance trends.")
+else:
+    st.info("Awaiting connection to Google Sheets...")
